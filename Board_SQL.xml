@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="egovframework.example.board.service.impl.BoardMapper">
+
+
+	<resultMap id="board" type="egovframework.example.board.service.BoardVO">
+		<result property="idx" column="idx" />
+		<result property="title" column="title" />
+		<result property="contents" column="contents" />
+		<result property="writer" column="writer" />
+		<result property="writerNm" column="writerNm" />
+		<result property="filename" column="filename"/>		
+		<result property="indate" column="indate" />
+	</resultMap>
+
+
+
+	<insert id="insertBoard" parameterType="boardVO">
+
+		INSERT INTO TB_BOARD
+		( IDX
+		, TITLE
+		, CONTENTS
+		, COUNT
+		, WRITER
+		, INDATE
+		)
+		VALUES (NULL
+		, #{title, jdbcType=VARCHAR}
+		, #{contents, jdbcType=VARCHAR}
+		, 0
+		, #{writer, jdbcType=VARCHAR}
+		, SYSDATE() )
+	</insert>
+
+
+
+	<update id="updateBoard">
+		UPDATE TB_BOARD
+		SET TITLE=#{title, jdbcType=VARCHAR}
+		, CONTENTS=#{contents, jdbcType=VARCHAR}
+		WHERE IDX=#{idx}
+	</update>
+
+
+
+	<delete id="deleteBoard">
+		DELETE FROM TB_BOARD
+		WHERE IDX=#{idx}
+	</delete>
+
+
+	<update id="updateBoardCount">
+		UPDATE TB_BOARD
+		SET COUNT = IFNULL(COUNT,0) + 1
+		WHERE IDX=#{idx}
+	</update>
+
+
+	<select id="selectBoard" resultMap="board">
+		SELECT
+		A.IDX as idx
+		, A.TITLE as title
+		, A.CONTENTS as contents
+		, IFNULL(A.COUNT,0) as count
+		, A.WRITER as writer
+		, A.INDATE as indate
+		, B.USER_NAME as wrterNm
+		FROM TB_BOARD A LEFT JOIN TB_USER B ON A.WRITER = B.USER_ID
+		WHERE A.IDX=#{idx, jdbcType=VARCHAR}
+	</select>
+
+
+
+	<select id="selectBoardList" parameterType="boardVO" resultType="egovMap">
+		SELECT
+		A.IDX as idx
+		, A.TITLE as title
+		, A.CONTENTS as contents
+		, IFNULL(A.COUNT,0) as count
+		, A.WRITER as writer
+		, A.INDATE as indate
+		, B.USER_NAME as wrterNm
+		, (SELECT COUNT(*) FROM TB_REPLY X WHERE X.IDX = A.IDX) AS replyCnt
+		, (SELECT X.FILENAME FROM TB_ATTACH X WHERE X.IDX = A.IDX AND X.SEQ=1)
+		AS fileName
+		FROM TB_BOARD A LEFT JOIN TB_USER B ON A.WRITER = B.USER_ID
+		WHERE 1=1
+		<if test="searchKeyword != null and searchKeyword != ''">
+			<choose>
+				<when test="searchCondition == 0">
+					AND IDX LIKE '%' || #{searchKeyword} || '%'
+				</when>
+				<when test="searchCondition == 1">
+					AND NAME LIKE '%' || #{searchKeyword} || '%'
+				</when>
+			</choose>
+		</if>
+		ORDER BY IDX DESC
+		<!-- LIMIT #{recordCountPerPage} OFFSET #{firstIndex} -->
+	</select>
+
+
+
+	<select id="selectBoardListTotCnt" parameterType="boardVO"
+		resultType="int">
+		SELECT COUNT(*) totcnt
+		FROM TB_BOARD
+		WHERE 1=1
+		<if test="searchKeyword != null and searchKeyword != ''">
+			AND (A.TITLE LIKE CONCAT('%',#{searchKeyword},'%')
+			OR A.CONTENTS LIKE CONCAT('%',#{searchKeyword},'%')
+			)
+		</if>
+	</select>
+
+
+
+	<select id="selectLoginCheck" parameterType="boardVO"
+		resultType="String">
+		SELECT USER_NAME
+		FROM TB_USER
+		WHERE 1=1
+		AND USER_ID = #{userId}
+		AND PASSWORD = #{password}
+	</select>
+
+
+
+	<insert id="insertReply" parameterType="boardVO">
+		INSERT INTO TB_REPLY
+		( IDX
+		, SEQ
+		, REPLY
+		, WRITER
+		, INDATE )
+		VALUES ( #{idx}
+		, (SELECT IFNULL(MAX(X.SEQ)+1,1) FROM TB_REPLY X WHERE X.IDX = #{idx})
+		, #{reply, jdbcType=VARCHAR}
+		, #{writer, jdbcType=VARCHAR}
+		, SYSDATE() )
+	</insert>
+
+	<select id="selectReplyList" parameterType="boardVO" resultType="egovMap">
+		SELECT
+		A.IDX as idx
+		, A.SEQ as seq
+		, A.REPLY as reply
+		, A.WRITER as writer
+		, A.INDATE as indate
+		FROM TB_REPLY A
+		WHERE 1=1
+		AND A.IDX = #{idx}
+		ORDER BY A.SEQ ASC
+	</select>
+
+	<insert id="insertAttach" parameterType="boardVO">
+		INSERT INTO TB_ATTACH
+		( IDX
+		, SEQ
+		, FILENAME
+		, WRITER
+		, INDATE )
+		VALUES ( #{idx}
+		, (SELECT IFNULL(MAX(X.SEQ)+1,1) FROM TB_REPLY X WHERE X.IDX = #{idx})
+		, #{filename, jdbcType=VARCHAR}
+		, #{writer, jdbcType=VARCHAR}
+		, SYSDATE() )
+	</insert>
+
+	<delete id="deleteAttach">
+		DELETE FROM TB_ATTACH
+		WHERE 1=1
+		AND IDX=#{idx}
+		AND SEQ=#{seq}
+	</delete>
+
+	<select id="selectAttach" parameterType="boardVO" resultMap="board">
+		SELECT
+		A.IDX as idx
+		, A.SEQ as seq
+		, A.FILENAME as filename
+		, B.USER_NAME as writerNm
+		, A.INDATE as indate
+		FROM TB_ATTACH A LEFT JOIN TB_USER B ON A.WRITER = B.USER_ID
+		WHERE 1=1
+		AND A.IDX = #{idx}
+		AND A.SEQ = 1
+		ORDER BY A.SEQ ASC
+	</select>
+
+</mapper>
